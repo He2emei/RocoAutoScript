@@ -23,6 +23,18 @@ blacklist:
   enabled: true
   row_margin: 80
 
+stats:
+  enabled: true
+  events_file: stats/rewards.jsonl
+  summary_file: stats/summary.json
+  unresolved_dir: debug/reward_unresolved
+  duplicate_window_seconds: 20
+
+reward_ocr:
+  template_dir: assets/templates/reward_digits
+  digit_threshold: 0.45
+  min_component_pixels: 45
+
 vision:
   base_width: 2048
   base_height: 1152
@@ -38,13 +50,14 @@ vision:
     min_g_minus_b: 42
 
 regions:
-  friend_status_search: [390, 250, 1120, 1010]
+  friend_status_search: [390, 250, 1120, 1060]
   friend_list_panel: [260, 130, 1940, 1010]
   menu_left_panel: [100, 225, 520, 1115]
   confirm_dialog_header: [500, 375, 1550, 475]
   confirm_dialog_body: [495, 375, 1555, 770]
   confirm_button: [1065, 885, 1325, 1000]
   result_reward_banner: [1420, 990, 2048, 1152]
+  reward_amount: [1740, 1020, 2048, 1125]
   right_side_panel: [1320, 0, 2048, 1152]
   minimap: [1700, 20, 2015, 230]
   loading_logo: [600, 280, 1450, 560]
@@ -87,9 +100,10 @@ templates:
       threshold: 0.58
   watch_status:
     - file: assets/templates/status_shining_low.png
-      region: [390, 250, 1120, 1010]
+      region: [390, 250, 1120, 1060]
       threshold: 0.62
       max_hits: 12
+      row_gap: 95
   blacklist:
     - name: 全剧终
       file: assets/templates/blacklist_quanjuzhong.png

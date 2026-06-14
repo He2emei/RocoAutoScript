@@ -7,6 +7,7 @@ from pathlib import Path
 from .adb import AdbDevice
 from .config import Config
 from .geometry import random_near
+from .stats import RewardStats
 from .vision import (
     SCENE_CONFIRM,
     SCENE_BATTLE,
@@ -37,6 +38,9 @@ class SpectatorBot:
         self.tab_index = 0
         self.entered_friends = False
         self.last_battle_seen_at = 0.0
+        self.reward_stats = RewardStats(config)
+        self.last_reward_amount: int | None = None
+        self.last_reward_recorded_at = 0.0
 
     @property
     def tabs(self) -> list[str]:
@@ -77,6 +81,31 @@ class SpectatorBot:
         folder.mkdir(parents=True, exist_ok=True)
         image.save(folder / f"{int(time.time())}.png")
 
+    def _record_reward_if_needed(self, image) -> None:
+        if not self.reward_stats.enabled:
+            return
+        reward = self.vision.extract_reward_coins(image)
+        duplicate_window = float(self.config.get("stats.duplicate_window_seconds", 20))
+        now = time.time()
+        if reward.amount is None:
+            path = self.reward_stats.save_unresolved_crop(image, reward.box, reward.text)
+            LOGGER.warning("reward OCR failed: text=%r confidence=%.3f crop=%s", reward.text, reward.confidence, path)
+            return
+        if self.last_reward_amount == reward.amount and now - self.last_reward_recorded_at < duplicate_window:
+            LOGGER.info("skip duplicate reward: amount=%s", reward.amount)
+            return
+        event = self.reward_stats.record(reward.amount, reward.confidence, reward.text, image.size)
+        self.last_reward_amount = reward.amount
+        self.last_reward_recorded_at = now
+        summary = self.reward_stats.summary()
+        LOGGER.info(
+            "reward recorded: amount=%s confidence=%.3f battles=%s coins=%s",
+            event.amount,
+            event.confidence,
+            summary.get("battles"),
+            summary.get("coins"),
+        )
+
     def step(self) -> str:
         image = image_from_png(self.device.screenshot_png())
         self._last_image = image
@@ -85,6 +114,7 @@ class SpectatorBot:
         LOGGER.info("scene=%s targets=%s notes=%s", diagnosis.scene, len(diagnosis.targets), "; ".join(diagnosis.notes))
 
         if diagnosis.scene == SCENE_RESULT:
+            self._record_reward_if_needed(image)
             self._tap_point("result_exit", radius=30)
             self.entered_friends = False
             self.swipes_on_current_tab = 0

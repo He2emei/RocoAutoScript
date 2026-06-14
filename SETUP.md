@@ -181,7 +181,30 @@ start_juneng_clicker.bat
 
 如果你的分辨率或 UI 位置不同，先用截图确认坐标，再改 `config.yaml` 的 `clicker.energy_point`。
 
-## 10. 黑名单配置
+## 10. 查看金币统计
+
+自动观战遇到结算页时，会尝试识别右下角本局金币，并写入：
+
+```text
+stats/rewards.jsonl
+stats/summary.json
+```
+
+查看累计值：
+
+```powershell
+python -m roco_auto stats
+```
+
+如果奖励数字没识别出来，脚本会把右下角金额裁图保存到：
+
+```text
+debug/reward_unresolved
+```
+
+当前奖励识别是轻量模板方案，不依赖 OCR 软件。遇到从未出现过的数字时，需要从未识别裁图里补一张数字模板到 `assets/templates/reward_digits`。
+
+## 11. 黑名单配置
 
 如果某个好友不允许观战，可以加入黑名单。当前默认已经包含 `全剧终`。
 

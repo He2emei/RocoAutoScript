@@ -51,6 +51,15 @@ class TemplateHit:
     template_size: tuple[int, int] = (0, 0)
 
 
+@dataclass(frozen=True)
+class RewardRecognition:
+    amount: int | None
+    text: str
+    confidence: float
+    box: tuple[int, int, int, int]
+    character_boxes: list[tuple[int, int, int, int]]
+
+
 def image_from_png(data: bytes) -> Image.Image:
     return Image.open(BytesIO(data)).convert("RGB")
 
@@ -63,6 +72,7 @@ class Vision:
     def __init__(self, config: Config) -> None:
         self.config = config
         self._template_cache: dict[tuple[str, int, int], np.ndarray] = {}
+        self._reward_digit_cache: dict[str, np.ndarray] | None = None
 
     def scaler(self, image: Image.Image) -> Scaler:
         base_width, base_height = self.config.base_size
@@ -330,14 +340,16 @@ class Vision:
             order = np.argsort(score_map[ys, xs])[::-1]
             name = Path(file_name).stem or f"watch_status_{index}"
             max_hits = int(template.get("max_hits", 12))
+            row_gap = max(height, scaler.y(float(template.get("row_gap", 95))))
+            template_hits: list[TemplateHit] = []
             for pos in order:
                 x = int(xs[pos])
                 y = int(ys[pos])
                 score = float(score_map[y, x])
                 box = (region[0] + x, region[1] + y, region[0] + x + width, region[1] + y + height)
-                if any(abs(((old.box[1] + old.box[3]) / 2) - ((box[1] + box[3]) / 2)) < height * 0.7 for old in hits):
+                if any(abs(((old.box[1] + old.box[3]) / 2) - ((box[1] + box[3]) / 2)) < row_gap for old in template_hits):
                     continue
-                hits.append(
+                template_hits.append(
                     TemplateHit(
                         scene="watch_status",
                         name=name,
@@ -347,9 +359,127 @@ class Vision:
                         template_size=(width, height),
                     )
                 )
-                if len(hits) >= max_hits:
+                if len(template_hits) >= max_hits:
                     break
+            hits.extend(template_hits)
         return sorted(hits, key=lambda hit: hit.score, reverse=True)
+
+    @staticmethod
+    def _reward_text_mask(arr: np.ndarray) -> np.ndarray:
+        if arr.size == 0:
+            return np.zeros(arr.shape[:2], dtype=bool)
+        r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+        return (r > 215) & (g > 200) & (b > 165) & ((r - b) < 70)
+
+    @staticmethod
+    def _connected_components(mask: np.ndarray, min_pixels: int) -> list[tuple[int, int, int, int, int]]:
+        height, width = mask.shape
+        seen = np.zeros_like(mask, dtype=bool)
+        components: list[tuple[int, int, int, int, int]] = []
+        ys, xs = np.where(mask)
+        for y_raw, x_raw in zip(ys, xs):
+            y = int(y_raw)
+            x = int(x_raw)
+            if seen[y, x] or not mask[y, x]:
+                continue
+            stack = [(y, x)]
+            seen[y, x] = True
+            points: list[tuple[int, int]] = []
+            while stack:
+                cy, cx = stack.pop()
+                points.append((cy, cx))
+                for ny in (cy - 1, cy, cy + 1):
+                    for nx in (cx - 1, cx, cx + 1):
+                        if ny < 0 or ny >= height or nx < 0 or nx >= width or seen[ny, nx] or not mask[ny, nx]:
+                            continue
+                        seen[ny, nx] = True
+                        stack.append((ny, nx))
+            if len(points) < min_pixels:
+                continue
+            py = np.array([point[0] for point in points])
+            px = np.array([point[1] for point in points])
+            components.append((int(px.min()), int(py.min()), int(px.max() + 1), int(py.max() + 1), len(points)))
+        return sorted(components)
+
+    @staticmethod
+    def _normalize_mask(mask: np.ndarray, size: tuple[int, int] = (32, 40)) -> np.ndarray:
+        image = Image.fromarray(mask.astype(np.uint8) * 255)
+        image = image.resize(size, Image.Resampling.NEAREST)
+        return np.asarray(image, dtype=np.float32) > 127
+
+    def _reward_digit_templates(self) -> dict[str, np.ndarray]:
+        if self._reward_digit_cache is not None:
+            return self._reward_digit_cache
+        folder = Path(str(self.config.get("reward_ocr.template_dir", "assets/templates/reward_digits")))
+        if not folder.is_absolute():
+            folder = ROOT / folder
+        templates: dict[str, list[np.ndarray]] = {}
+        for path in sorted(folder.glob("*.png")):
+            digit = path.stem[0]
+            if digit not in "0123456789":
+                continue
+            mask = np.asarray(Image.open(path).convert("L")) > 127
+            templates.setdefault(digit, []).append(self._normalize_mask(mask))
+        self._reward_digit_cache = {
+            digit: np.stack(items).astype(np.float32).mean(axis=0) > 0.5
+            for digit, items in templates.items()
+        }
+        return self._reward_digit_cache
+
+    def _match_reward_digit(self, mask: np.ndarray) -> tuple[str | None, float]:
+        templates = self._reward_digit_templates()
+        if not templates:
+            return None, 0.0
+        normalized = self._normalize_mask(mask)
+        best_digit: str | None = None
+        best_score = 0.0
+        for digit, template in templates.items():
+            union = np.logical_or(normalized, template).sum()
+            if union == 0:
+                continue
+            score = float(np.logical_and(normalized, template).sum() / union)
+            if score > best_score:
+                best_digit = digit
+                best_score = score
+        return best_digit, best_score
+
+    def extract_reward_coins(self, image: Image.Image) -> RewardRecognition:
+        scaler = self.scaler(image)
+        reward_box = scaler.box(self.config.region("reward_amount"))
+        crop = image.crop(reward_box)
+        arr = np.asarray(crop, dtype=np.float32)
+        mask = self._reward_text_mask(arr)
+        min_pixels = max(12, scaler.x(float(self.config.get("reward_ocr.min_component_pixels", 45))))
+        components = self._connected_components(mask, min_pixels)
+        if not components:
+            return RewardRecognition(None, "", 0.0, reward_box, [])
+
+        heights = [box[3] - box[1] for box in components]
+        median_height = float(np.median(heights))
+        min_height = max(8.0, median_height * 0.75)
+        pad = 2
+        digit_components = [
+            box for box in components
+            if (box[3] - box[1]) >= min_height
+        ]
+
+        text = ""
+        scores: list[float] = []
+        character_boxes: list[tuple[int, int, int, int]] = []
+        threshold = float(self.config.get("reward_ocr.digit_threshold", 0.45))
+        for x1, y1, x2, y2, _area in digit_components:
+            char_mask = mask[max(0, y1 - pad) : min(mask.shape[0], y2 + pad), max(0, x1 - pad) : min(mask.shape[1], x2 + pad)]
+            digit, score = self._match_reward_digit(char_mask)
+            if digit is None or score < threshold:
+                text += "?"
+            else:
+                text += digit
+            scores.append(score)
+            character_boxes.append((reward_box[0] + x1, reward_box[1] + y1, reward_box[0] + x2, reward_box[1] + y2))
+
+        amount = int(text) if text and "?" not in text else None
+        confidence = min(scores) if scores else 0.0
+        return RewardRecognition(amount, text, confidence, reward_box, character_boxes)
 
     def detect_scene(self, image: Image.Image) -> tuple[str, list[str]]:
         scaler = self.scaler(image)

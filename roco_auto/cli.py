@@ -8,7 +8,8 @@ from pathlib import Path
 from .adb import AdbDevice
 from .bot import SpectatorBot
 from .config import Config
-from .vision import Vision, image_from_file, image_from_png
+from .stats import RewardStats
+from .vision import SCENE_RESULT, Vision, image_from_file, image_from_png
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -67,6 +68,10 @@ def cmd_diagnose(config: Config, image_path: str | None, save_debug: bool) -> in
             f"  {idx}. tap=({target.x}, {target.y}) "
             f"green_pixels={target.green_pixels} width={target.width} box={target.box}"
         )
+    if diagnosis.scene == SCENE_RESULT:
+        reward = vision.extract_reward_coins(image)
+        print(f"reward coins: {reward.amount if reward.amount is not None else 'unknown'}")
+        print(f"reward text: {reward.text!r} confidence={reward.confidence:.3f} box={reward.box}")
     if save_debug:
         path = vision.save_debug(image, diagnosis)
         print(f"debug image: {path.resolve()}")
@@ -98,6 +103,19 @@ def cmd_clicker(config: Config, x: int | None, y: int | None, interval: float | 
     return 0
 
 
+def cmd_stats(config: Config) -> int:
+    stats = RewardStats(config)
+    summary = stats.summary()
+    print(f"battles: {summary.get('battles', 0)}")
+    print(f"coins: {summary.get('coins', 0)}")
+    if summary.get("last_amount") is not None:
+        print(f"last amount: {summary.get('last_amount')}")
+    if summary.get("last_timestamp"):
+        print(f"last timestamp: {summary.get('last_timestamp')}")
+    print(f"events file: {stats.events_file}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="roco_auto")
     parser.add_argument("--config", default=None, help="Path to config YAML.")
@@ -126,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
     clicker.add_argument("--interval", type=float, default=None, help="Seconds between taps.")
     clicker.add_argument("--once", action="store_true", help="Tap once and exit.")
 
+    sub.add_parser("stats", help="Show recorded reward totals.")
+
     args = parser.parse_args(argv)
     setup_logging(args.verbose)
     config = Config.load(args.config)
@@ -140,4 +160,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run(config, args.interval, args.dry_run)
     if args.command == "clicker":
         return cmd_clicker(config, args.x, args.y, args.interval, args.once)
+    if args.command == "stats":
+        return cmd_stats(config)
     raise AssertionError(args.command)

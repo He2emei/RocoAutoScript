@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5 - 2026-06-15
+
+- Improved watch-status detection to keep the best hit per friend row, so blacklisted active friends do not hide other active friends.
+- Extended the watch-status search region near the bottom of the friend list.
+- Added reward coin recognition on the battle result page.
+- Added reward statistics files and a `stats` CLI command.
+
 ## 0.1.4 - 2026-06-15
 
 - Added a first-run setup guide for new users.

@@ -12,7 +12,7 @@
 4. 点击该好友右侧的观战按钮。
 5. 在弹窗中确认“传送并观战”。
 6. 观战中等待。
-7. 对战结束奖励页点击任意位置退出，然后重复。
+7. 对战结束奖励页识别本局金币，写入统计后点击任意位置退出，然后重复。
 
 如果当前好友页没有可观战目标，脚本会留在好友页，等待 `runtime.interval_seconds` 后重新截图判断。
 如果游戏长时间未操作进入节能模式，脚本会点击屏幕中心返回游戏。
@@ -28,6 +28,7 @@ python -m roco_auto screenshot --output debug/live.png
 python -m roco_auto diagnose --image debug/live.png
 python -m roco_auto run --interval 30
 python -m roco_auto clicker
+python -m roco_auto stats
 ```
 
 常用参数：
@@ -43,6 +44,8 @@ python -m roco_auto clicker --x 106 --y 618 --interval 2
 
 `diagnose` 不传 `--image` 时会从模拟器实时截图，并打印识别到的界面和候选好友行。
 
+`stats` 会打印当前累计观战场次、累计金币和统计文件位置。统计默认写入 `stats/rewards.jsonl` 与 `stats/summary.json`。
+
 ## 配置
 
 `config.yaml` 里最常改的是：
@@ -52,6 +55,8 @@ python -m roco_auto clicker --x 106 --y 618 --interval 2
 - `runtime.dry_run`：只识别不点击。
 - `blacklist.enabled`：是否启用不可观战玩家过滤。
 - `templates.blacklist`：黑名单玩家姓名模板。需要新增玩家时，裁一张姓名小图放到 `assets/templates`，再在这里追加配置。
+- `stats.enabled`：是否记录结算页金币统计。
+- `reward_ocr.template_dir`：奖励金币数字模板目录。遇到缺模板数字时会保存未识别裁图到 `debug/reward_unresolved`。
 - `vision.activity_min_width`：绿色状态文字最小宽度。真实手机 UI 如果识别不到可观战好友，可以适当调低。
 - `templates`：页面模板配置。每个模板都有 `file`、`region`、`threshold`，坐标同样按 `2048x1152` 写。
 - `regions` 和 `tap_points`：所有坐标都按截图基准 `2048x1152` 写，脚本会自动缩放到当前截图大小。
@@ -64,6 +69,7 @@ python -m roco_auto clicker --x 106 --y 618 --interval 2
 - Pillow/numpy 做局部模板匹配。菜单、好友页、确认弹窗、观战页、结算页都优先用 `assets/templates` 里的 UI 小图确认。
 - 好友可观战目标只接受“正在进行[闪耀大赛]”状态模板命中；普通绿色状态默认不会触发观战。
 - 黑名单使用姓名模板匹配：如果黑名单姓名和“正在进行[闪耀大赛]”处于同一行，该候选会被丢弃。
+- 结算金币使用右下角金额区域的轻量数字模板识别，识别成功才写入累计统计。
 - `vision.green_status_fallback` 可以恢复旧的泛绿色扫描，但默认关闭，避免误传到非 PVP 好友。
 - 颜色/亮度统计只作为兜底，例如过场黑屏、小地图、动态血条布局，不再作为主判据。
 - 节能模式用深色背景、底部返回提示和黄色电池图标组合判断，命中后点击屏幕中心唤醒。
