@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 - 2026-06-15
+
+- Added detection for the in-game energy-saving idle screen.
+- Added an automatic center-screen tap to return from energy-saving mode.
+
 ## 0.1.2 - 2026-06-15
 
 - Added a template-based blacklist for friends who disallow spectating.

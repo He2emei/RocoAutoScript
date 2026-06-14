@@ -49,6 +49,8 @@ regions:
   minimap: [1700, 20, 2015, 230]
   loading_logo: [600, 280, 1450, 560]
   loading_progress: [0, 995, 2048, 1080]
+  sleep_prompt: [860, 920, 1190, 1020]
+  sleep_battery: [760, 380, 860, 450]
   battle_left_hp: [105, 58, 355, 125]
   battle_right_hp: [1710, 58, 2010, 125]
   battle_bottom_controls: [980, 990, 1340, 1070]
@@ -102,6 +104,7 @@ tap_points:
   watch_button_x: 1715
   confirm_watch: [1195, 945]
   result_exit: [1024, 576]
+  wake_screen: [1024, 576]
   close_top_right: [1905, 58]
 
 swipe:

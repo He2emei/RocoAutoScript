@@ -19,6 +19,7 @@ SCENE_CONFIRM = "confirm_watch"
 SCENE_RESULT = "battle_result"
 SCENE_BATTLE = "battle"
 SCENE_LOADING = "loading"
+SCENE_SLEEP = "sleep_mode"
 SCENE_SIDE_PANEL = "side_panel"
 SCENE_UNKNOWN = "unknown"
 
@@ -365,6 +366,14 @@ class Vision:
 
         screen_dark = self._dark_ratio(np.asarray(image, dtype=np.float32))
         notes.append(f"screen_dark={screen_dark:.3f}")
+        sleep_prompt_arr = self._crop_array(image, scaler.box(self.config.region("sleep_prompt")))
+        sleep_battery_arr = self._crop_array(image, scaler.box(self.config.region("sleep_battery")))
+        sleep_prompt_white = self._white_ratio(sleep_prompt_arr)
+        sleep_battery_yellow = self._yellow_ratio(sleep_battery_arr)
+        notes.append(f"sleep_prompt_white={sleep_prompt_white:.3f}")
+        notes.append(f"sleep_battery_yellow={sleep_battery_yellow:.3f}")
+        if screen_dark > 0.75 and sleep_prompt_white > 0.025 and sleep_battery_yellow > 0.05:
+            return SCENE_SLEEP, notes
         if screen_dark > 0.75:
             return SCENE_LOADING, notes
 

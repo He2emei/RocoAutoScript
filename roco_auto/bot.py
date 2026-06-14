@@ -15,6 +15,7 @@ from .vision import (
     SCENE_MENU,
     SCENE_NORMAL,
     SCENE_RESULT,
+    SCENE_SLEEP,
     SCENE_SIDE_PANEL,
     Vision,
     image_from_png,
@@ -88,6 +89,11 @@ class SpectatorBot:
             self.entered_friends = False
             self.swipes_on_current_tab = 0
             self.last_battle_seen_at = 0.0
+            return diagnosis.scene
+
+        if diagnosis.scene == SCENE_SLEEP:
+            self._tap_point("wake_screen", radius=50)
+            self.entered_friends = False
             return diagnosis.scene
 
         if diagnosis.scene == SCENE_SIDE_PANEL:
