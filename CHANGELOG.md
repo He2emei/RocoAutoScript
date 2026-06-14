@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - 2026-06-15
+
+- Added a first-run setup guide for new users.
+- Documented Python dependency installation, local config creation, MuMu ADB setup, screenshot diagnosis, dry-run checks, and startup scripts.
+
 ## 0.1.3 - 2026-06-15
 
 - Added detection for the in-game energy-saving idle screen.
