@@ -1,0 +1,95 @@
+adb:
+  executable: auto
+  serial: 127.0.0.1:16448
+  mumu:
+    cli: D:\APP\MuMuPlayer\nx_main\mumu-cli.exe
+    index: 2
+    auto_connect: true
+
+runtime:
+  interval_seconds: 30
+  dry_run: false
+  max_swipes_per_tab: 4
+  post_action_delay_seconds: 2.0
+  post_battle_grace_seconds: 180
+  save_screenshots: false
+  screenshot_dir: debug/screenshots
+
+clicker:
+  energy_point: [106, 618]
+  interval_seconds: 2.0
+
+vision:
+  base_width: 2048
+  base_height: 1152
+  template_debug: true
+  activity_min_width: 170
+  activity_min_green_pixels: 80
+  green_threshold:
+    min_g: 105
+    g_over_r: 1.25
+    g_over_b: 1.45
+    min_g_minus_r: 28
+    min_g_minus_b: 42
+
+regions:
+  friend_status_search: [390, 250, 1120, 1010]
+  friend_list_panel: [260, 130, 1940, 1010]
+  menu_left_panel: [100, 225, 520, 1115]
+  confirm_dialog_header: [500, 375, 1550, 475]
+  confirm_dialog_body: [495, 375, 1555, 770]
+  confirm_button: [1065, 885, 1325, 1000]
+  result_reward_banner: [1420, 990, 2048, 1152]
+  right_side_panel: [1320, 0, 2048, 1152]
+  minimap: [1700, 20, 2015, 230]
+  loading_logo: [600, 280, 1450, 560]
+  loading_progress: [0, 995, 2048, 1080]
+  battle_left_hp: [105, 58, 355, 125]
+  battle_right_hp: [1710, 58, 2010, 125]
+  battle_bottom_controls: [980, 990, 1340, 1070]
+
+templates:
+  menu:
+    - file: assets/templates/menu_friend_high.png
+      region: [220, 350, 425, 550]
+      threshold: 0.64
+    - file: assets/templates/menu_friend_low.png
+      region: [220, 350, 425, 550]
+      threshold: 0.70
+  friends:
+    - file: assets/templates/friends_title_high.png
+      region: [40, 0, 390, 130]
+      threshold: 0.62
+    - file: assets/templates/friends_tabs_high.png
+      region: [70, 100, 265, 410]
+      threshold: 0.60
+  confirm:
+    - file: assets/templates/confirm_title_high.png
+      region: [650, 360, 1405, 500]
+      threshold: 0.62
+    - file: assets/templates/confirm_button_high.png
+      region: [1030, 850, 1360, 1030]
+      threshold: 0.62
+  battle:
+    - file: assets/templates/battle_spectator_controls_high.png
+      region: [930, 960, 1380, 1100]
+      threshold: 0.58
+  result:
+    - file: assets/templates/result_reward_high.png
+      region: [1360, 930, 2048, 1152]
+      threshold: 0.58
+
+tap_points:
+  open_menu: [140, 75]
+  menu_friend: [315, 450]
+  friend_tab_game: [165, 195]
+  friend_tab_qq: [165, 320]
+  watch_button_x: 1715
+  confirm_watch: [1195, 945]
+  result_exit: [1024, 576]
+  close_top_right: [1905, 58]
+
+swipe:
+  list_start: [1120, 900]
+  list_end: [1120, 310]
+  duration_ms: 550
