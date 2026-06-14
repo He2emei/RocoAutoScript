@@ -23,6 +23,7 @@ vision:
   base_width: 2048
   base_height: 1152
   template_debug: true
+  green_status_fallback: false
   activity_min_width: 170
   activity_min_green_pixels: 80
   green_threshold:
@@ -78,6 +79,10 @@ templates:
     - file: assets/templates/result_reward_high.png
       region: [1360, 930, 2048, 1152]
       threshold: 0.58
+  watch_status:
+    - file: assets/templates/status_shining_low.png
+      region: [390, 250, 1120, 1010]
+      threshold: 0.62
 
 tap_points:
   open_menu: [140, 75]

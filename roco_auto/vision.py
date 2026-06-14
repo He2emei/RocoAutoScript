@@ -47,6 +47,7 @@ class TemplateHit:
     score: float
     threshold: float
     box: tuple[int, int, int, int]
+    template_size: tuple[int, int] = (0, 0)
 
 
 def image_from_png(data: bytes) -> Image.Image:
@@ -181,7 +182,18 @@ class Vision:
         self._template_cache[key] = arr
         return arr
 
-    def _template_score(self, image: Image.Image, template: dict, scaler: Scaler) -> tuple[float, tuple[int, int, int, int]]:
+    def _template_rgb(self, file_name: str, width: int, height: int) -> Image.Image:
+        path = Path(file_name)
+        if not path.is_absolute():
+            path = ROOT / path
+        image = Image.open(path).convert("RGB")
+        if image.size != (width, height):
+            image = image.resize((width, height), Image.Resampling.LANCZOS)
+        return image
+
+    def _template_score_map(
+        self, image: Image.Image, template: dict, scaler: Scaler
+    ) -> tuple[np.ndarray | None, tuple[int, int, int, int], tuple[int, int]]:
         region = self._box_from_config(scaler, template["region"])
         search = self._gray_array(image.crop(region))
         sx, sy = scaler.sx, scaler.sy
@@ -190,13 +202,13 @@ class Vision:
         width = max(8, round(base_template.width * sx))
         height = max(8, round(base_template.height * sy))
         if search.shape[0] < height or search.shape[1] < width:
-            return -1.0, region
+            return None, region, (width, height)
 
         tpl = self._template_array(file_name, width, height)
         tpl = tpl - float(tpl.mean())
         tpl_norm_sq = float(np.square(tpl).sum())
         if tpl_norm_sq < 1e-6:
-            return -1.0, region
+            return None, region, (width, height)
 
         numerator = self._fft_valid_correlation(search, tpl)
         padded = np.pad(search, ((1, 0), (1, 0)), mode="constant")
@@ -208,14 +220,20 @@ class Vision:
         n = float(width * height)
         local_var = np.maximum(local_sum_sq - np.square(local_sum) / n, 1e-6)
         score_map = numerator / np.sqrt(local_var * tpl_norm_sq)
+        return score_map, region, (width, height)
+
+    def _template_score(self, image: Image.Image, template: dict, scaler: Scaler) -> tuple[float, tuple[int, int, int, int], tuple[int, int]]:
+        score_map, region, template_size = self._template_score_map(image, template, scaler)
+        if score_map is None:
+            return -1.0, region, template_size
         score = float(np.nanmax(score_map))
-        return score, region
+        return score, region, template_size
 
     def _template_hits(self, image: Image.Image, scene: str) -> list[TemplateHit]:
         scaler = self.scaler(image)
         hits: list[TemplateHit] = []
         for index, template in enumerate(self.config.get(f"templates.{scene}", []) or []):
-            score, box = self._template_score(image, template, scaler)
+            score, box, template_size = self._template_score(image, template, scaler)
             name = Path(str(template["file"])).stem or f"{scene}_{index}"
             hits.append(
                 TemplateHit(
@@ -224,6 +242,7 @@ class Vision:
                     score=score,
                     threshold=float(template.get("threshold", 0.7)),
                     box=box,
+                    template_size=template_size,
                 )
             )
         return hits
@@ -241,6 +260,93 @@ class Vision:
         if self.config.get("vision.template_debug", True):
             notes.append(f"tpl_{scene}={best.score:.3f}:{best.name}")
         return best.score >= best.threshold
+
+    def _template_target_hits(self, image: Image.Image, scene: str) -> list[TemplateHit]:
+        if scene == "watch_status":
+            return self._watch_status_hits(image)
+
+        scaler = self.scaler(image)
+        hits: list[TemplateHit] = []
+        for index, template in enumerate(self.config.get(f"templates.{scene}", []) or []):
+            score_map, region, template_size = self._template_score_map(image, template, scaler)
+            if score_map is None:
+                continue
+            threshold = float(template.get("threshold", 0.7))
+            ys, xs = np.where(score_map >= threshold)
+            if xs.size == 0:
+                continue
+
+            order = np.argsort(score_map[ys, xs])[::-1]
+            name = Path(str(template["file"])).stem or f"{scene}_{index}"
+            width, height = template_size
+            for pos in order:
+                x = int(xs[pos])
+                y = int(ys[pos])
+                score = float(score_map[y, x])
+                box = (region[0] + x, region[1] + y, region[0] + x + width, region[1] + y + height)
+                if any(abs(((old.box[1] + old.box[3]) / 2) - ((box[1] + box[3]) / 2)) < height * 0.7 for old in hits):
+                    continue
+                hits.append(
+                    TemplateHit(
+                        scene=scene,
+                        name=name,
+                        score=score,
+                        threshold=threshold,
+                        box=box,
+                        template_size=template_size,
+                    )
+                )
+                break
+        return sorted(hits, key=lambda hit: hit.score, reverse=True)
+
+    def _watch_status_hits(self, image: Image.Image) -> list[TemplateHit]:
+        scaler = self.scaler(image)
+        hits: list[TemplateHit] = []
+        for index, template in enumerate(self.config.get("templates.watch_status", []) or []):
+            region = self._box_from_config(scaler, template["region"])
+            search_arr = self._crop_array(image, region)
+            search_mask = self._green_mask(search_arr).astype(np.float32)
+            sx, sy = scaler.sx, scaler.sy
+            file_name = str(template["file"])
+            base_template = Image.open((ROOT / file_name) if not Path(file_name).is_absolute() else file_name)
+            width = max(8, round(base_template.width * sx))
+            height = max(8, round(base_template.height * sy))
+            if search_mask.shape[0] < height or search_mask.shape[1] < width:
+                continue
+
+            tpl_arr = np.asarray(self._template_rgb(file_name, width, height), dtype=np.float32)
+            tpl_mask = self._green_mask(tpl_arr).astype(np.float32)
+            template_green = float(tpl_mask.sum())
+            if template_green < 10:
+                continue
+
+            score_map = self._fft_valid_correlation(search_mask, tpl_mask) / template_green
+            threshold = float(template.get("threshold", 0.62))
+            ys, xs = np.where(score_map >= threshold)
+            if xs.size == 0:
+                continue
+
+            order = np.argsort(score_map[ys, xs])[::-1]
+            name = Path(file_name).stem or f"watch_status_{index}"
+            for pos in order:
+                x = int(xs[pos])
+                y = int(ys[pos])
+                score = float(score_map[y, x])
+                box = (region[0] + x, region[1] + y, region[0] + x + width, region[1] + y + height)
+                if any(abs(((old.box[1] + old.box[3]) / 2) - ((box[1] + box[3]) / 2)) < height * 0.7 for old in hits):
+                    continue
+                hits.append(
+                    TemplateHit(
+                        scene="watch_status",
+                        name=name,
+                        score=score,
+                        threshold=threshold,
+                        box=box,
+                        template_size=(width, height),
+                    )
+                )
+                break
+        return sorted(hits, key=lambda hit: hit.score, reverse=True)
 
     def detect_scene(self, image: Image.Image) -> tuple[str, list[str]]:
         scaler = self.scaler(image)
@@ -350,6 +456,25 @@ class Vision:
 
     def find_watch_targets(self, image: Image.Image) -> list[WatchTarget]:
         scaler = self.scaler(image)
+        status_hits = self._template_target_hits(image, "watch_status")
+        if status_hits:
+            target_x = scaler.x(float(self.config.get("tap_points.watch_button_x", 1715)))
+            targets = [
+                WatchTarget(
+                    y=round((hit.box[1] + hit.box[3]) / 2),
+                    x=target_x,
+                    green_pixels=round(hit.score * 1000),
+                    width=hit.box[2] - hit.box[0],
+                    box=hit.box,
+                )
+                for hit in status_hits
+            ]
+            center = image.height / 2
+            return sorted(targets, key=lambda item: abs(item.y - center))
+
+        if not self.config.get("vision.green_status_fallback", False):
+            return []
+
         box = scaler.box(self.config.region("friend_status_search"))
         arr = self._crop_array(image, box)
         mask = self._green_mask(arr)
