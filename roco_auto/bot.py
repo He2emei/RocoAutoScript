@@ -23,6 +23,7 @@ from .vision import (
 
 LOGGER = logging.getLogger("roco_auto")
 SCENE_BATTLE_TRANSITION = "battle_transition"
+SCENE_NO_WATCH_TARGET = "no_watch_target"
 
 
 class SpectatorBot:
@@ -111,15 +112,8 @@ class SpectatorBot:
                 self._tap_xy(target.x, target.y, "watch_button")
                 return diagnosis.scene
 
-            max_swipes = int(self.config.get("runtime.max_swipes_per_tab", 4))
-            if self.swipes_on_current_tab >= max_swipes:
-                self.tab_index = (self.tab_index + 1) % len(self.tabs)
-                self.swipes_on_current_tab = 0
-                self._tap_point(self.tabs[self.tab_index], radius=8)
-            else:
-                self.swipes_on_current_tab += 1
-                self._swipe_list()
-            return diagnosis.scene
+            LOGGER.info("no watchable friend target; wait")
+            return SCENE_NO_WATCH_TARGET
 
         if diagnosis.scene == SCENE_MENU:
             self._tap_point("menu_friend", radius=10)
@@ -159,6 +153,6 @@ class SpectatorBot:
                 scene = "error"
 
             delay = float(self.config.get("runtime.post_action_delay_seconds", 2.0))
-            if scene in {SCENE_LOADING, SCENE_BATTLE, SCENE_BATTLE_TRANSITION, "unknown", "error"}:
+            if scene in {SCENE_LOADING, SCENE_BATTLE, SCENE_BATTLE_TRANSITION, SCENE_NO_WATCH_TARGET, "unknown", "error"}:
                 delay = interval_seconds
             time.sleep(max(delay, 0.1))

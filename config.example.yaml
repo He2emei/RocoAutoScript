@@ -19,6 +19,10 @@ clicker:
   energy_point: [106, 618]
   interval_seconds: 2.0
 
+blacklist:
+  enabled: true
+  row_margin: 80
+
 vision:
   base_width: 2048
   base_height: 1152
@@ -83,6 +87,12 @@ templates:
     - file: assets/templates/status_shining_low.png
       region: [390, 250, 1120, 1010]
       threshold: 0.62
+      max_hits: 12
+  blacklist:
+    - name: 全剧终
+      file: assets/templates/blacklist_quanjuzhong.png
+      region: [390, 250, 760, 1010]
+      threshold: 0.72
 
 tap_points:
   open_menu: [140, 75]

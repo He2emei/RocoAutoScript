@@ -6,11 +6,13 @@
 
 1. 在大世界普通界面点击左上角菜单。
 2. 在菜单里点击“好友”。
-3. 在好友列表中扫描可观战好友。
+3. 在好友列表中扫描可观战好友，并跳过黑名单玩家。
 4. 点击该好友右侧的观战按钮。
 5. 在弹窗中确认“传送并观战”。
 6. 观战中等待。
 7. 对战结束奖励页点击任意位置退出，然后重复。
+
+如果当前好友页没有可观战目标，脚本会留在好友页，等待 `runtime.interval_seconds` 后重新截图判断。
 
 脚本默认使用 MuMu 第三个实例，ADB serial 为 `127.0.0.1:16448`。如果你的实例变化了，可以改 `config.yaml`。
 `config.yaml` 是本机配置，不进入版本控制；新环境可以从 `config.example.yaml` 复制一份。
@@ -45,6 +47,8 @@ python -m roco_auto clicker --x 106 --y 618 --interval 2
 - `adb.serial`：目标模拟器，比如 `127.0.0.1:16448`。
 - `runtime.interval_seconds`：主循环截图间隔。
 - `runtime.dry_run`：只识别不点击。
+- `blacklist.enabled`：是否启用不可观战玩家过滤。
+- `templates.blacklist`：黑名单玩家姓名模板。需要新增玩家时，裁一张姓名小图放到 `assets/templates`，再在这里追加配置。
 - `vision.activity_min_width`：绿色状态文字最小宽度。真实手机 UI 如果识别不到可观战好友，可以适当调低。
 - `templates`：页面模板配置。每个模板都有 `file`、`region`、`threshold`，坐标同样按 `2048x1152` 写。
 - `regions` 和 `tap_points`：所有坐标都按截图基准 `2048x1152` 写，脚本会自动缩放到当前截图大小。
@@ -56,6 +60,7 @@ python -m roco_auto clicker --x 106 --y 618 --interval 2
 - ADB 负责截图、点击、滑动。
 - Pillow/numpy 做局部模板匹配。菜单、好友页、确认弹窗、观战页、结算页都优先用 `assets/templates` 里的 UI 小图确认。
 - 好友可观战目标只接受“正在进行[闪耀大赛]”状态模板命中；普通绿色状态默认不会触发观战。
+- 黑名单使用姓名模板匹配：如果黑名单姓名和“正在进行[闪耀大赛]”处于同一行，该候选会被丢弃。
 - `vision.green_status_fallback` 可以恢复旧的泛绿色扫描，但默认关闭，避免误传到非 PVP 好友。
 - 颜色/亮度统计只作为兜底，例如过场黑屏、小地图、动态血条布局，不再作为主判据。
 - 坐标按 16:9 基准归一化，适配 MuMu 当前横屏截图。

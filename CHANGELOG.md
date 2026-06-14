@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 - 2026-06-15
+
+- Added a template-based blacklist for friends who disallow spectating.
+- Added `全剧终` to the default blacklist templates.
+- Changed the no-target behavior on the friend list to wait for the main interval instead of swiping immediately.
+
 ## 0.1.1 - 2026-06-15
 
 - Restricted friend watch target detection to the exact `正在进行[闪耀大赛]` status.

@@ -234,7 +234,7 @@ class Vision:
         hits: list[TemplateHit] = []
         for index, template in enumerate(self.config.get(f"templates.{scene}", []) or []):
             score, box, template_size = self._template_score(image, template, scaler)
-            name = Path(str(template["file"])).stem or f"{scene}_{index}"
+            name = str(template.get("name") or Path(str(template["file"])).stem or f"{scene}_{index}")
             hits.append(
                 TemplateHit(
                     scene=scene,
@@ -277,7 +277,7 @@ class Vision:
                 continue
 
             order = np.argsort(score_map[ys, xs])[::-1]
-            name = Path(str(template["file"])).stem or f"{scene}_{index}"
+            name = str(template.get("name") or Path(str(template["file"])).stem or f"{scene}_{index}")
             width, height = template_size
             for pos in order:
                 x = int(xs[pos])
@@ -328,6 +328,7 @@ class Vision:
 
             order = np.argsort(score_map[ys, xs])[::-1]
             name = Path(file_name).stem or f"watch_status_{index}"
+            max_hits = int(template.get("max_hits", 12))
             for pos in order:
                 x = int(xs[pos])
                 y = int(ys[pos])
@@ -345,7 +346,8 @@ class Vision:
                         template_size=(width, height),
                     )
                 )
-                break
+                if len(hits) >= max_hits:
+                    break
         return sorted(hits, key=lambda hit: hit.score, reverse=True)
 
     def detect_scene(self, image: Image.Image) -> tuple[str, list[str]]:
@@ -454,6 +456,9 @@ class Vision:
             return SCENE_NORMAL, notes
         return SCENE_UNKNOWN, notes
 
+    def _is_blacklisted_target(self, target: WatchTarget, blacklist_hits: list[TemplateHit], row_margin: int) -> bool:
+        return any(abs(target.y - round((hit.box[1] + hit.box[3]) / 2)) <= row_margin for hit in blacklist_hits)
+
     def find_watch_targets(self, image: Image.Image) -> list[WatchTarget]:
         scaler = self.scaler(image)
         status_hits = self._template_target_hits(image, "watch_status")
@@ -469,6 +474,15 @@ class Vision:
                 )
                 for hit in status_hits
             ]
+            if self.config.get("blacklist.enabled", True):
+                row_margin = scaler.y(float(self.config.get("blacklist.row_margin", 80)))
+                blacklist_hits = self._template_target_hits(image, "blacklist")
+                if blacklist_hits:
+                    targets = [
+                        target
+                        for target in targets
+                        if not self._is_blacklisted_target(target, blacklist_hits, row_margin)
+                    ]
             center = image.height / 2
             return sorted(targets, key=lambda item: abs(item.y - center))
 
