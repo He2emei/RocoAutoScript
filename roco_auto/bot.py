@@ -167,17 +167,19 @@ class SpectatorBot:
             return diagnosis.scene
 
         if diagnosis.scene == SCENE_FRIENDS:
+            if diagnosis.targets:
+                target = diagnosis.targets[0]
+                self.entered_friends = True
+                self.needs_list_reset = False
+                LOGGER.info("watch target row=%s reason=%s", target.row_index + 1 if target.row_index >= 0 else "-", target.reason)
+                self._tap_xy(target.x, target.y, "watch_button")
+                return diagnosis.scene
+
             if not self.entered_friends or self.needs_list_reset:
                 self._tap_point(self.tabs[self.tab_index], radius=8)
                 self.entered_friends = True
                 self.swipes_on_current_tab = 0
                 self.needs_list_reset = False
-                return diagnosis.scene
-
-            if diagnosis.targets:
-                target = diagnosis.targets[0]
-                LOGGER.info("watch target row=%s reason=%s", target.row_index + 1 if target.row_index >= 0 else "-", target.reason)
-                self._tap_xy(target.x, target.y, "watch_button")
                 return diagnosis.scene
 
             if diagnosis.offline_tail:

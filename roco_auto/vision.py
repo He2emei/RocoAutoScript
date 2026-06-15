@@ -508,6 +508,34 @@ class Vision:
         confidence = min(scores) if scores else 0.0
         return RewardRecognition(amount, text, confidence, reward_box, character_boxes)
 
+    def _friend_page_structure_matches(self, image: Image.Image, scaler: Scaler, notes: list[str]) -> bool:
+        panel_arr = self._crop_array(image, scaler.box(self.config.region("friend_list_panel")))
+        title_arr = self._crop_array(image, scaler.box((40, 0, 390, 130)))
+        close_arr = self._crop_array(image, scaler.box((1820, 0, 2000, 120)))
+        tab_arr = self._crop_array(image, scaler.box((70, 100, 265, 410)))
+
+        panel_dark = self._dark_ratio(panel_arr)
+        title_yellow = self._yellow_ratio(title_arr)
+        title_white = self._white_ratio(title_arr)
+        close_white = self._white_ratio(close_arr)
+        tab_white = self._white_ratio(tab_arr)
+        rows = self._friend_rows(image)
+
+        notes.append(f"friend_struct_panel_dark={panel_dark:.3f}")
+        notes.append(f"friend_struct_title_yellow={title_yellow:.3f}")
+        notes.append(f"friend_struct_title_white={title_white:.3f}")
+        notes.append(f"friend_struct_close_white={close_white:.3f}")
+        notes.append(f"friend_struct_tab_white={tab_white:.3f}")
+        notes.append(f"friend_struct_rows={len(rows)}")
+
+        return (
+            panel_dark > 0.58
+            and len(rows) >= 5
+            and close_white > 0.035
+            and tab_white > 0.035
+            and (title_yellow > 0.045 or title_white > 0.02)
+        )
+
     def detect_scene(self, image: Image.Image) -> tuple[str, list[str]]:
         scaler = self.scaler(image)
         notes: list[str] = []
@@ -600,7 +628,8 @@ class Vision:
         panel_brightness = self._brightness(friend_panel_arr)
         notes.append(f"friend_panel_brightness={panel_brightness:.1f}")
         friends_template = self._template_matches(image, "friends", notes)
-        if friends_template:
+        friends_structure = False if friends_template else self._friend_page_structure_matches(image, scaler, notes)
+        if friends_template or friends_structure:
             targets = self.find_watch_targets(image)
             notes.extend(self._last_watch_notes)
             notes.append(f"watch_targets={len(targets)}")

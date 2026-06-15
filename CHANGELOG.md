@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13 - 2026-06-16
+
+- Added a structural friend-page fallback so QQ friend lists are still recognized when the title template score is lower.
+- Kept normal game/NPC screens out of friend-list detection by requiring friend-list rows, tab icons, and the close button together.
+- Prioritized visible watch targets before re-selecting friend tabs, so starting on a QQ friend page can click an existing target immediately.
+
 ## 0.1.6 - 2026-06-15
 
 - Added a lightweight Tkinter GUI for profile switching, process control, logs, screenshots, diagnosis, and stats.
