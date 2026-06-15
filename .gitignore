@@ -5,3 +5,5 @@ __pycache__/
 debug/
 stats/
 config.yaml
+configs/*.yaml
+configs/*.yml

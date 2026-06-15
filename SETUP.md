@@ -157,7 +157,40 @@ start_auto_watch.bat
 
 运行时建议让模拟器保持在游戏内，不要遮挡或最小化到无法截图的状态。
 
-## 9. 启动聚能连点器
+## 9. 使用 GUI 和多配置
+
+启动 GUI：
+
+```powershell
+python -m roco_auto gui
+```
+
+也可以双击：
+
+```text
+start_gui.bat
+```
+
+GUI 使用标准库 Tkinter，不做实时截图预览，只负责配置档案、启动/停止脚本、查看日志和统计。多账号配置默认放在：
+
+```text
+configs/*.yaml
+```
+
+在 GUI 里新建 `account-main`、`account-alt` 这类配置后，每个配置可以填不同的 `adb.serial` 和 `adb.mumu.index`。GUI 保存 `configs/account-main.yaml` 时，会把统计文件自动分到：
+
+```text
+stats/account-main
+```
+
+命令行也可以指定配置。注意 `--config` 要放在子命令前：
+
+```powershell
+python -m roco_auto --config configs/account-main.yaml run --interval 30
+python -m roco_auto --config configs/account-alt.yaml stats
+```
+
+## 10. 启动聚能连点器
 
 聚能连点器不做截图识别，只按固定坐标点击：
 
@@ -181,7 +214,7 @@ start_juneng_clicker.bat
 
 如果你的分辨率或 UI 位置不同，先用截图确认坐标，再改 `config.yaml` 的 `clicker.energy_point`。
 
-## 10. 查看金币统计
+## 11. 查看金币统计
 
 自动观战遇到结算页时，会尝试识别右下角本局金币，并写入：
 
@@ -204,7 +237,7 @@ debug/reward_unresolved
 
 当前奖励识别是轻量模板方案，不依赖 OCR 软件。遇到从未出现过的数字时，需要从未识别裁图里补一张数字模板到 `assets/templates/reward_digits`。
 
-## 11. 黑名单配置
+## 12. 黑名单配置
 
 如果某个好友不允许观战，可以加入黑名单。当前默认已经包含 `全剧终`。
 

@@ -116,6 +116,12 @@ def cmd_stats(config: Config) -> int:
     return 0
 
 
+def cmd_gui() -> int:
+    from .gui import main as gui_main
+
+    return gui_main()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="roco_auto")
     parser.add_argument("--config", default=None, help="Path to config YAML.")
@@ -145,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
     clicker.add_argument("--once", action="store_true", help="Tap once and exit.")
 
     sub.add_parser("stats", help="Show recorded reward totals.")
+    sub.add_parser("gui", help="Open the lightweight Tkinter GUI.")
 
     args = parser.parse_args(argv)
     setup_logging(args.verbose)
@@ -162,4 +169,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_clicker(config, args.x, args.y, args.interval, args.once)
     if args.command == "stats":
         return cmd_stats(config)
+    if args.command == "gui":
+        return cmd_gui()
     raise AssertionError(args.command)

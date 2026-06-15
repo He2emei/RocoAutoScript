@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 - 2026-06-15
+
+- Added a lightweight Tkinter GUI for profile switching, process control, logs, screenshots, diagnosis, and stats.
+- Added local `configs/*.yaml` profile support for multiple MuMu/account setups.
+- Added `start_gui.bat`.
+- Added per-profile stats/debug paths for GUI-managed profiles.
+
 ## 0.1.5 - 2026-06-15
 
 - Improved watch-status detection to keep the best hit per friend row, so blacklisted active friends do not hide other active friends.

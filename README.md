@@ -29,6 +29,7 @@ python -m roco_auto diagnose --image debug/live.png
 python -m roco_auto run --interval 30
 python -m roco_auto clicker
 python -m roco_auto stats
+python -m roco_auto gui
 ```
 
 常用参数：
@@ -46,6 +47,8 @@ python -m roco_auto clicker --x 106 --y 618 --interval 2
 
 `stats` 会打印当前累计观战场次、累计金币和统计文件位置。统计默认写入 `stats/rewards.jsonl` 与 `stats/summary.json`。
 
+`gui` 会打开一个低刷新率 Tkinter 管理界面，用于切换多账号配置、启动/停止观战、启动/停止聚能、查看日志和统计。GUI 不做实时画面预览，主要通过子进程运行现有命令，尽量减少额外性能消耗。
+
 ## 配置
 
 `config.yaml` 里最常改的是：
@@ -60,6 +63,13 @@ python -m roco_auto clicker --x 106 --y 618 --interval 2
 - `vision.activity_min_width`：绿色状态文字最小宽度。真实手机 UI 如果识别不到可观战好友，可以适当调低。
 - `templates`：页面模板配置。每个模板都有 `file`、`region`、`threshold`，坐标同样按 `2048x1152` 写。
 - `regions` 和 `tap_points`：所有坐标都按截图基准 `2048x1152` 写，脚本会自动缩放到当前截图大小。
+
+多账号配置可以放在 `configs/*.yaml`。命令行使用时，把 `--config` 放在子命令前：
+
+```powershell
+python -m roco_auto --config configs/account-main.yaml run --interval 30
+python -m roco_auto --config configs/account-alt.yaml stats
+```
 
 ## 设计说明
 
