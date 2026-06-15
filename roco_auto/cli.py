@@ -59,6 +59,7 @@ def cmd_diagnose(config: Config, image_path: str | None, save_debug: bool) -> in
     diagnosis = vision.diagnose(image)
     print(f"image: {diagnosis.image_size[0]}x{diagnosis.image_size[1]}")
     print(f"scene: {diagnosis.scene}")
+    print(f"offline tail: {diagnosis.offline_tail}")
     print("notes:")
     for note in diagnosis.notes:
         print(f"  - {note}")

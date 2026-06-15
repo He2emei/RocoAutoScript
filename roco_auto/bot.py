@@ -47,6 +47,19 @@ class SpectatorBot:
     def tabs(self) -> list[str]:
         return ["friend_tab_game", "friend_tab_qq"]
 
+    def _move_to_next_friend_tab(self) -> bool:
+        if self.tab_index + 1 >= len(self.tabs):
+            self.tab_index = 0
+            self.entered_friends = False
+            self.needs_list_reset = True
+            self.swipes_on_current_tab = 0
+            return False
+        self.tab_index += 1
+        self.entered_friends = False
+        self.needs_list_reset = False
+        self.swipes_on_current_tab = 0
+        return True
+
     def _tap_point(self, name: str, radius: int = 4) -> None:
         image = getattr(self, "_last_image", None)
         if image is None:
@@ -156,6 +169,15 @@ class SpectatorBot:
                 self._tap_xy(target.x, target.y, "watch_button")
                 return diagnosis.scene
 
+            if diagnosis.offline_tail:
+                if self._move_to_next_friend_tab():
+                    LOGGER.info("offline tail reached; switch to %s", self.tabs[self.tab_index])
+                    self._tap_point(self.tabs[self.tab_index], radius=8)
+                    self.entered_friends = True
+                    return diagnosis.scene
+                LOGGER.info("offline tail reached on last friend tab; wait before rescan")
+                return SCENE_NO_WATCH_TARGET
+
             max_swipes = int(self.config.get("runtime.max_swipes_per_tab", 4))
             if self.swipes_on_current_tab < max_swipes:
                 self.swipes_on_current_tab += 1
@@ -163,8 +185,13 @@ class SpectatorBot:
                 self._swipe_list()
                 return diagnosis.scene
 
-            LOGGER.info("no watchable friend target after %s swipes; wait before rescan", max_swipes)
-            self.needs_list_reset = True
+            if self._move_to_next_friend_tab():
+                LOGGER.info("no watchable friend target after %s swipes; switch to %s", max_swipes, self.tabs[self.tab_index])
+                self._tap_point(self.tabs[self.tab_index], radius=8)
+                self.entered_friends = True
+                return diagnosis.scene
+
+            LOGGER.info("no watchable friend target after %s swipes on all tabs; wait before rescan", max_swipes)
             return SCENE_NO_WATCH_TARGET
 
         if diagnosis.scene == SCENE_MENU:

@@ -57,6 +57,14 @@ vision:
   green_status_fallback: false
   activity_min_width: 170
   activity_min_green_pixels: 80
+  offline_min_gray_pixels: 55
+  offline_max_green_pixels: 20
+  offline_online_green_pixels: 45
+  offline_consecutive_rows: 1
+  offline_gray_threshold:
+    min_v: 85
+    max_v: 190
+    max_delta: 28
   green_threshold:
     min_g: 105
     g_over_r: 1.25

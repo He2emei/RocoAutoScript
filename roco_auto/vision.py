@@ -42,6 +42,7 @@ class Diagnosis:
     targets: list[WatchTarget]
     image_size: tuple[int, int]
     notes: list[str]
+    offline_tail: bool = False
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,7 @@ class Vision:
         self._reward_digit_cache: dict[str, np.ndarray] | None = None
         self._text_ocr = OptionalTextOcr(config)
         self._last_watch_notes: list[str] = []
+        self._last_offline_tail = False
 
     def scaler(self, image: Image.Image) -> Scaler:
         base_width, base_height = self.config.base_size
@@ -178,6 +180,16 @@ class Vision:
             & ((g - r) >= min_g_minus_r)
             & ((g - b) >= min_g_minus_b)
         )
+
+    def _gray_status_mask(self, arr: np.ndarray) -> np.ndarray:
+        threshold = self.config.get("vision.offline_gray_threshold", {})
+        min_v = float(threshold.get("min_v", 85))
+        max_v = float(threshold.get("max_v", 190))
+        max_delta = float(threshold.get("max_delta", 28))
+        r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+        mx = np.maximum(np.maximum(r, g), b)
+        mn = np.minimum(np.minimum(r, g), b)
+        return (mx >= min_v) & (mx <= max_v) & ((mx - mn) <= max_delta)
 
     @staticmethod
     def _integral_sum(integral: np.ndarray, height: int, width: int) -> np.ndarray:
@@ -688,9 +700,46 @@ class Vision:
         normalized = self._normalize_text(result.text)
         return any(name in normalized for name in names)
 
+    def _row_offline_score(self, image: Image.Image, row: FriendRow) -> tuple[int, int]:
+        crop = self._crop_array(image, row.status_box)
+        if crop.size == 0:
+            return 0, 0
+        green_pixels = int(self._green_mask(crop).sum())
+        gray_pixels = int(self._gray_status_mask(crop).sum())
+        return gray_pixels, green_pixels
+
+    def _detect_offline_tail(self, image: Image.Image, rows: list[FriendRow]) -> bool:
+        scaler = self.scaler(image)
+        min_gray = int(float(self.config.get("vision.offline_min_gray_pixels", 55)) * scaler.sx)
+        max_green = int(float(self.config.get("vision.offline_max_green_pixels", 20)) * scaler.sx)
+        online_green = int(float(self.config.get("vision.offline_online_green_pixels", 45)) * scaler.sx)
+        consecutive_required = int(self.config.get("vision.offline_consecutive_rows", 1))
+        row_scores = [(row, *self._row_offline_score(image, row)) for row in rows]
+        last_online_index = -1
+        for index, (_row, _gray_pixels, green_pixels) in enumerate(row_scores):
+            if green_pixels >= online_green:
+                last_online_index = index
+
+        consecutive = 0
+        first_offline_row: int | None = None
+        for row, gray_pixels, green_pixels in row_scores[last_online_index + 1 :]:
+            if gray_pixels >= min_gray and green_pixels <= max_green:
+                consecutive += 1
+                if first_offline_row is None:
+                    first_offline_row = row.index + 1
+            else:
+                consecutive = 0
+                first_offline_row = None
+            if consecutive >= consecutive_required:
+                self._last_watch_notes.append(f"offline_tail=row{first_offline_row}")
+                return True
+        self._last_watch_notes.append("offline_tail=0")
+        return False
+
     def find_watch_targets(self, image: Image.Image) -> list[WatchTarget]:
         scaler = self.scaler(image)
         self._last_watch_notes = []
+        self._last_offline_tail = False
         rows = self._friend_rows(image)
         row_margin = scaler.y(float(self.config.get("friend_list.row_match_margin", 55)))
         status_hits = self._template_target_hits(image, "watch_status")
@@ -702,6 +751,7 @@ class Vision:
         ocr_backend = self._text_ocr.backend_name
         self._last_watch_notes.append(f"friend_rows={len(rows)}")
         self._last_watch_notes.append(f"ocr={ocr_backend}")
+        self._last_offline_tail = self._detect_offline_tail(image, rows)
         for row in rows:
             matched = False
             reason = ""
@@ -846,7 +896,13 @@ class Vision:
         for note in self._last_watch_notes:
             if note not in notes:
                 notes.append(note)
-        return Diagnosis(scene=scene, targets=targets, image_size=(image.width, image.height), notes=notes)
+        return Diagnosis(
+            scene=scene,
+            targets=targets,
+            image_size=(image.width, image.height),
+            notes=notes,
+            offline_tail=self._last_offline_tail,
+        )
 
     def save_debug(self, image: Image.Image, diagnosis: Diagnosis, folder: str | Path = "debug") -> Path:
         folder = Path(folder)
