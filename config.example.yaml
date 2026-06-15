@@ -22,6 +22,20 @@ clicker:
 blacklist:
   enabled: true
   row_margin: 80
+  names:
+    - 全剧终
+
+ocr:
+  enabled: true
+  backend: auto
+  language: chi_sim
+  psm: 7
+  scale: 3
+  letter_color: [92, 205, 30]
+  color_threshold: 90
+  watch_keyword_groups:
+    - [正在进行, 正进行]
+    - [闪耀大赛, 耀大赛, 闪大赛]
 
 stats:
   enabled: true
@@ -39,6 +53,7 @@ vision:
   base_width: 2048
   base_height: 1152
   template_debug: true
+  row_template_only: true
   green_status_fallback: false
   activity_min_width: 170
   activity_min_green_pixels: 80
@@ -50,7 +65,7 @@ vision:
     min_g_minus_b: 42
 
 regions:
-  friend_status_search: [390, 250, 1120, 1060]
+  friend_status_search: [390, 220, 1120, 1060]
   friend_list_panel: [260, 130, 1940, 1010]
   menu_left_panel: [100, 225, 520, 1115]
   confirm_dialog_header: [500, 375, 1550, 475]
@@ -67,6 +82,17 @@ regions:
   battle_left_hp: [105, 58, 355, 125]
   battle_right_hp: [1710, 58, 2010, 125]
   battle_bottom_controls: [980, 990, 1340, 1070]
+
+friend_list:
+  visible_rows: 6
+  first_row_y: 250
+  row_gap: 150
+  row_height: 130
+  row_match_margin: 55
+  row_x1: 260
+  row_x2: 1940
+  status_box: [430, -22, 790, 24]
+  name_box: [430, -68, 790, -20]
 
 templates:
   menu:
@@ -99,9 +125,14 @@ templates:
       region: [1360, 930, 2048, 1152]
       threshold: 0.58
   watch_status:
+    - file: assets/templates/status_shining_720_low.png
+      region: [390, 220, 1120, 1060]
+      threshold: 0.90
+      max_hits: 12
+      row_gap: 95
     - file: assets/templates/status_shining_low.png
-      region: [390, 250, 1120, 1060]
-      threshold: 0.62
+      region: [390, 220, 1120, 1060]
+      threshold: 0.80
       max_hits: 12
       row_gap: 95
   blacklist:

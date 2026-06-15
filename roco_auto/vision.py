@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw
 
 from .config import Config, ROOT
 from .geometry import Scaler
+from .ocr import OptionalTextOcr
 
 
 SCENE_NORMAL = "normal"
@@ -31,6 +32,8 @@ class WatchTarget:
     green_pixels: int
     width: int
     box: tuple[int, int, int, int]
+    row_index: int = -1
+    reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,16 @@ class TemplateHit:
     threshold: float
     box: tuple[int, int, int, int]
     template_size: tuple[int, int] = (0, 0)
+
+
+@dataclass(frozen=True)
+class FriendRow:
+    index: int
+    y: int
+    row_box: tuple[int, int, int, int]
+    status_box: tuple[int, int, int, int]
+    name_box: tuple[int, int, int, int]
+    watch_x: int
 
 
 @dataclass(frozen=True)
@@ -73,6 +86,8 @@ class Vision:
         self.config = config
         self._template_cache: dict[tuple[str, int, int], np.ndarray] = {}
         self._reward_digit_cache: dict[str, np.ndarray] | None = None
+        self._text_ocr = OptionalTextOcr(config)
+        self._last_watch_notes: list[str] = []
 
     def scaler(self, image: Image.Image) -> Scaler:
         base_width, base_height = self.config.base_size
@@ -573,9 +588,10 @@ class Vision:
         panel_brightness = self._brightness(friend_panel_arr)
         notes.append(f"friend_panel_brightness={panel_brightness:.1f}")
         targets = self.find_watch_targets(image)
+        notes.extend(self._last_watch_notes)
         friends_template = self._template_matches(image, "friends", notes)
         if friends_template and (targets or panel_brightness < 110):
-            notes.append(f"green_targets={len(targets)}")
+            notes.append(f"watch_targets={len(targets)}")
             return SCENE_FRIENDS, notes
 
         if panel_brightness < 82 and image.width > image.height and not minimap_like:
@@ -598,8 +614,143 @@ class Vision:
     def _is_blacklisted_target(self, target: WatchTarget, blacklist_hits: list[TemplateHit], row_margin: int) -> bool:
         return any(abs(target.y - round((hit.box[1] + hit.box[3]) / 2)) <= row_margin for hit in blacklist_hits)
 
+    def _friend_rows(self, image: Image.Image) -> list[FriendRow]:
+        scaler = self.scaler(image)
+        row_centers = self.config.get("friend_list.row_centers", [])
+        if not row_centers:
+            first_y = float(self.config.get("friend_list.first_row_y", 315))
+            row_gap = float(self.config.get("friend_list.row_gap", 150))
+            visible_rows = int(self.config.get("friend_list.visible_rows", 6))
+            row_centers = [first_y + row_gap * index for index in range(visible_rows)]
+
+        row_height = float(self.config.get("friend_list.row_height", 130))
+        status_box = self.config.get("friend_list.status_box", [430, -22, 790, 24])
+        name_box = self.config.get("friend_list.name_box", [430, -68, 790, -20])
+        row_x1 = float(self.config.get("friend_list.row_x1", 260))
+        row_x2 = float(self.config.get("friend_list.row_x2", 1940))
+        watch_x = scaler.x(float(self.config.get("tap_points.watch_button_x", 1715)))
+
+        rows: list[FriendRow] = []
+        for index, center in enumerate(row_centers):
+            y = scaler.y(float(center))
+            half_height = scaler.y(row_height / 2)
+            status = (
+                scaler.x(float(status_box[0])),
+                y + scaler.y(float(status_box[1])),
+                scaler.x(float(status_box[2])),
+                y + scaler.y(float(status_box[3])),
+            )
+            name = (
+                scaler.x(float(name_box[0])),
+                y + scaler.y(float(name_box[1])),
+                scaler.x(float(name_box[2])),
+                y + scaler.y(float(name_box[3])),
+            )
+            row = (
+                scaler.x(row_x1),
+                max(0, y - half_height),
+                scaler.x(row_x2),
+                min(image.height, y + half_height),
+            )
+            rows.append(FriendRow(index=index, y=y, row_box=row, status_box=status, name_box=name, watch_x=watch_x))
+        return rows
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        return "".join(ch for ch in text if not ch.isspace()).replace("[", "").replace("]", "").replace("【", "").replace("】", "")
+
+    def _watch_text_matches(self, text: str) -> bool:
+        normalized = self._normalize_text(text)
+        groups = self.config.get("ocr.watch_keyword_groups")
+        if not groups:
+            groups = [["正在进行", "正进行"], ["闪耀大赛", "耀大赛", "闪大赛"]]
+        return all(any(str(keyword) in normalized for keyword in group) for group in groups)
+
+    def _row_has_template_status(self, row: FriendRow, status_hits: list[TemplateHit], row_margin: int) -> TemplateHit | None:
+        candidates = [
+            hit
+            for hit in status_hits
+            if abs(row.y - round((hit.box[1] + hit.box[3]) / 2)) <= row_margin
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda hit: hit.score)
+
+    def _row_is_blacklisted(self, image: Image.Image, row: FriendRow, blacklist_hits: list[TemplateHit], row_margin: int) -> bool:
+        if any(abs(row.y - round((hit.box[1] + hit.box[3]) / 2)) <= row_margin for hit in blacklist_hits):
+            return True
+
+        names = [str(name) for name in self.config.get("blacklist.names", []) or [] if str(name)]
+        if not names or self._text_ocr.backend_name in {"disabled", "unavailable"}:
+            return False
+
+        result = self._text_ocr.recognize(image.crop(row.name_box))
+        normalized = self._normalize_text(result.text)
+        return any(name in normalized for name in names)
+
     def find_watch_targets(self, image: Image.Image) -> list[WatchTarget]:
         scaler = self.scaler(image)
+        self._last_watch_notes = []
+        rows = self._friend_rows(image)
+        row_margin = scaler.y(float(self.config.get("friend_list.row_match_margin", 55)))
+        status_hits = self._template_target_hits(image, "watch_status")
+        blacklist_hits: list[TemplateHit] = []
+        if self.config.get("blacklist.enabled", True):
+            blacklist_hits = self._template_target_hits(image, "blacklist")
+
+        targets: list[WatchTarget] = []
+        ocr_backend = self._text_ocr.backend_name
+        self._last_watch_notes.append(f"friend_rows={len(rows)}")
+        self._last_watch_notes.append(f"ocr={ocr_backend}")
+        for row in rows:
+            matched = False
+            reason = ""
+            green_pixels = 0
+            status_box = row.status_box
+
+            if ocr_backend not in {"disabled", "unavailable"}:
+                result = self._text_ocr.recognize(image.crop(row.status_box))
+                text = self._normalize_text(result.text)
+                self._last_watch_notes.append(f"row{row.index + 1}_ocr={text or '-'}")
+                if self._watch_text_matches(text):
+                    matched = True
+                    reason = f"ocr:{result.backend}"
+                    green_pixels = round(max(result.confidence, 0.1) * 1000)
+
+            if not matched:
+                hit = self._row_has_template_status(row, status_hits, row_margin)
+                if hit is not None:
+                    matched = True
+                    reason = f"template:{hit.name}:{hit.score:.3f}"
+                    green_pixels = round(hit.score * 1000)
+                    status_box = hit.box
+
+            if not matched:
+                continue
+
+            if self.config.get("blacklist.enabled", True) and self._row_is_blacklisted(image, row, blacklist_hits, row_margin):
+                self._last_watch_notes.append(f"row{row.index + 1}_blacklisted")
+                continue
+
+            targets.append(
+                WatchTarget(
+                    y=row.y,
+                    x=row.watch_x,
+                    green_pixels=green_pixels,
+                    width=status_box[2] - status_box[0],
+                    box=status_box,
+                    row_index=row.index,
+                    reason=reason,
+                )
+            )
+
+        if targets:
+            center = image.height / 2
+            return sorted(targets, key=lambda item: abs(item.y - center))
+
+        if self.config.get("vision.row_template_only", True):
+            return []
+
         status_hits = self._template_target_hits(image, "watch_status")
         if status_hits:
             target_x = scaler.x(float(self.config.get("tap_points.watch_button_x", 1715)))
@@ -610,6 +761,7 @@ class Vision:
                     green_pixels=round(hit.score * 1000),
                     width=hit.box[2] - hit.box[0],
                     box=hit.box,
+                    reason=f"legacy_template:{hit.name}",
                 )
                 for hit in status_hits
             ]
@@ -691,6 +843,9 @@ class Vision:
     def diagnose(self, image: Image.Image) -> Diagnosis:
         scene, notes = self.detect_scene(image)
         targets = self.find_watch_targets(image)
+        for note in self._last_watch_notes:
+            if note not in notes:
+                notes.append(note)
         return Diagnosis(scene=scene, targets=targets, image_size=(image.width, image.height), notes=notes)
 
     def save_debug(self, image: Image.Image, diagnosis: Diagnosis, folder: str | Path = "debug") -> Path:

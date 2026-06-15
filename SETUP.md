@@ -35,6 +35,12 @@ python -m pip install -U pip
 python -m pip install -r requirements.txt
 ```
 
+可选：好友状态识别支持 OCR 辅助。脚本只会 OCR 每行状态文字的小区域，不会全屏识别；没安装 OCR 后端时会自动降级到状态模板。
+
+```powershell
+python -m pip install rapidocr_onnxruntime
+```
+
 以后每次重新打开终端，先进入项目目录并激活虚拟环境：
 
 ```powershell
@@ -79,6 +85,7 @@ runtime:
 - `adb.mumu.cli`：MuMu 的 `mumu-cli.exe` 路径。安装位置不同就改成自己的路径。
 - `adb.mumu.index`：MuMu 实例编号，通常从 0 开始。第三个实例一般是 `2`。
 - `runtime.interval_seconds`：等待、观战、无目标时的主循环间隔。默认 30 秒。
+- `runtime.max_swipes_per_tab`：好友列表每轮最多向下滑几屏。每屏按 6 条可见好友重新扫描。
 - `runtime.dry_run`：设为 `true` 时只识别不点击，适合第一次测试。
 
 ## 4. 找到模拟器 serial
@@ -127,7 +134,7 @@ python -m roco_auto diagnose --save-debug
 
 - `scene`：当前识别出的页面。
 - `watch targets`：好友列表里识别到的可观战候选数量。
-- `notes`：模板和颜色判据的分数，排查问题时使用。
+- `notes`：模板、逐行识别、OCR 后端和黑名单过滤信息，排查问题时使用。
 
 如果加了 `--save-debug`，会在 `debug/` 里生成带红框的诊断图。
 
@@ -156,6 +163,8 @@ start_auto_watch.bat
 ```
 
 运行时建议让模拟器保持在游戏内，不要遮挡或最小化到无法截图的状态。
+
+好友列表会按当前可见的 6 条逐行扫描。当前屏没有目标时，脚本会执行一次列表滑动，让下一组好友尽量完整进入同一套行区域；滑动次数达到 `runtime.max_swipes_per_tab` 后仍没有可观战好友，才等待 `runtime.interval_seconds`，下一轮先点当前好友页签归位再重新扫描。
 
 ## 9. 使用 GUI 和多配置
 
@@ -241,7 +250,7 @@ debug/reward_unresolved
 
 如果某个好友不允许观战，可以加入黑名单。当前默认已经包含 `全剧终`。
 
-黑名单依赖姓名小图模板，不是 OCR。新增玩家的大致流程：
+黑名单优先依赖姓名小图模板；如果安装了 OCR 后端，也会参考 `blacklist.names` 里的玩家名。新增玩家的大致流程：
 
 1. 截一张好友列表图。
 2. 裁出该玩家姓名区域，保存到 `assets/templates/`。
@@ -256,7 +265,28 @@ templates:
       file: assets/templates/blacklist_quanjuzhong.png
       region: [390, 250, 760, 1010]
       threshold: 0.72
+
+blacklist:
+  names:
+    - 全剧终
 ```
+
+## 13. 好友列表识别和滚动调参
+
+好友行坐标在 `friend_list` 下配置，所有坐标仍以 `2048x1152` 为基准，会自动缩放到当前截图大小：
+
+```yaml
+friend_list:
+  visible_rows: 6
+  first_row_y: 250
+  row_gap: 150
+  row_height: 130
+  row_match_margin: 55
+  status_box: [430, -22, 790, 24]
+  name_box: [430, -68, 790, -20]
+```
+
+如果滑动后下一组 6 条没有完整对齐，优先调 `swipe.list_start`、`swipe.list_end` 和 `swipe.duration_ms`。如果某一行状态文字框住不准，优先调 `friend_list.status_box` 和 `friend_list.row_gap`。
 
 `region` 是搜索范围，按 `2048x1152` 基准坐标填写；脚本会自动缩放到当前截图大小。
 

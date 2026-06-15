@@ -37,6 +37,7 @@ class SpectatorBot:
         self.swipes_on_current_tab = 0
         self.tab_index = 0
         self.entered_friends = False
+        self.needs_list_reset = False
         self.last_battle_seen_at = 0.0
         self.reward_stats = RewardStats(config)
         self.last_reward_amount: int | None = None
@@ -118,42 +119,58 @@ class SpectatorBot:
             self._tap_point("result_exit", radius=30)
             self.entered_friends = False
             self.swipes_on_current_tab = 0
+            self.needs_list_reset = False
             self.last_battle_seen_at = 0.0
             return diagnosis.scene
 
         if diagnosis.scene == SCENE_SLEEP:
             self._tap_point("wake_screen", radius=50)
             self.entered_friends = False
+            self.needs_list_reset = False
             return diagnosis.scene
 
         if diagnosis.scene == SCENE_SIDE_PANEL:
             self._tap_point("close_top_right", radius=8)
             self.entered_friends = False
+            self.needs_list_reset = False
             return diagnosis.scene
 
         if diagnosis.scene == SCENE_CONFIRM:
             self._tap_point("confirm_watch", radius=8)
             self.entered_friends = False
             self.swipes_on_current_tab = 0
+            self.needs_list_reset = False
             return diagnosis.scene
 
         if diagnosis.scene == SCENE_FRIENDS:
-            if not self.entered_friends:
+            if not self.entered_friends or self.needs_list_reset:
                 self._tap_point(self.tabs[self.tab_index], radius=8)
                 self.entered_friends = True
+                self.swipes_on_current_tab = 0
+                self.needs_list_reset = False
                 return diagnosis.scene
 
             if diagnosis.targets:
                 target = diagnosis.targets[0]
+                LOGGER.info("watch target row=%s reason=%s", target.row_index + 1 if target.row_index >= 0 else "-", target.reason)
                 self._tap_xy(target.x, target.y, "watch_button")
                 return diagnosis.scene
 
-            LOGGER.info("no watchable friend target; wait")
+            max_swipes = int(self.config.get("runtime.max_swipes_per_tab", 4))
+            if self.swipes_on_current_tab < max_swipes:
+                self.swipes_on_current_tab += 1
+                LOGGER.info("no watchable friend target on current rows; swipe page %s/%s", self.swipes_on_current_tab, max_swipes)
+                self._swipe_list()
+                return diagnosis.scene
+
+            LOGGER.info("no watchable friend target after %s swipes; wait before rescan", max_swipes)
+            self.needs_list_reset = True
             return SCENE_NO_WATCH_TARGET
 
         if diagnosis.scene == SCENE_MENU:
             self._tap_point("menu_friend", radius=10)
             self.entered_friends = False
+            self.needs_list_reset = False
             return diagnosis.scene
 
         if diagnosis.scene == SCENE_NORMAL:
@@ -163,6 +180,7 @@ class SpectatorBot:
                 return SCENE_BATTLE_TRANSITION
             self._tap_point("open_menu", radius=8)
             self.entered_friends = False
+            self.needs_list_reset = False
             return diagnosis.scene
 
         if diagnosis.scene == SCENE_BATTLE:

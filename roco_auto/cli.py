@@ -66,7 +66,8 @@ def cmd_diagnose(config: Config, image_path: str | None, save_debug: bool) -> in
     for idx, target in enumerate(diagnosis.targets, 1):
         print(
             f"  {idx}. tap=({target.x}, {target.y}) "
-            f"green_pixels={target.green_pixels} width={target.width} box={target.box}"
+            f"row={target.row_index + 1 if target.row_index >= 0 else '-'} "
+            f"score={target.green_pixels} width={target.width} reason={target.reason or '-'} box={target.box}"
         )
     if diagnosis.scene == SCENE_RESULT:
         reward = vision.extract_reward_coins(image)
