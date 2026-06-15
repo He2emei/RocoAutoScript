@@ -599,14 +599,11 @@ class Vision:
         friend_panel_arr = self._crop_array(image, scaler.box(self.config.region("friend_list_panel")))
         panel_brightness = self._brightness(friend_panel_arr)
         notes.append(f"friend_panel_brightness={panel_brightness:.1f}")
-        targets = self.find_watch_targets(image)
-        notes.extend(self._last_watch_notes)
         friends_template = self._template_matches(image, "friends", notes)
-        if friends_template and (targets or panel_brightness < 110):
+        if friends_template:
+            targets = self.find_watch_targets(image)
+            notes.extend(self._last_watch_notes)
             notes.append(f"watch_targets={len(targets)}")
-            return SCENE_FRIENDS, notes
-
-        if panel_brightness < 82 and image.width > image.height and not minimap_like:
             return SCENE_FRIENDS, notes
 
         menu_arr = self._crop_array(image, scaler.box(self.config.region("menu_left_panel")))
@@ -975,10 +972,14 @@ class Vision:
 
     def diagnose(self, image: Image.Image) -> Diagnosis:
         scene, notes = self.detect_scene(image)
-        targets = self.find_watch_targets(image)
-        for note in self._last_watch_notes:
-            if note not in notes:
-                notes.append(note)
+        targets: list[WatchTarget] = []
+        if scene == SCENE_FRIENDS:
+            targets = self.find_watch_targets(image)
+            for note in self._last_watch_notes:
+                if note not in notes:
+                    notes.append(note)
+        else:
+            self._last_offline_tail = False
         return Diagnosis(
             scene=scene,
             targets=targets,
