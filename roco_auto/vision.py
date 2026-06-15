@@ -628,6 +628,11 @@ class Vision:
 
     def _friend_rows(self, image: Image.Image) -> list[FriendRow]:
         scaler = self.scaler(image)
+        if self.config.get("friend_list.dynamic_rows", True):
+            rows = self._dynamic_friend_rows(image, scaler)
+            if rows:
+                return rows
+
         row_centers = self.config.get("friend_list.row_centers", [])
         if not row_centers:
             first_y = float(self.config.get("friend_list.first_row_y", 315))
@@ -646,6 +651,84 @@ class Vision:
         for index, center in enumerate(row_centers):
             y = scaler.y(float(center))
             half_height = scaler.y(row_height / 2)
+            status = (
+                scaler.x(float(status_box[0])),
+                y + scaler.y(float(status_box[1])),
+                scaler.x(float(status_box[2])),
+                y + scaler.y(float(status_box[3])),
+            )
+            name = (
+                scaler.x(float(name_box[0])),
+                y + scaler.y(float(name_box[1])),
+                scaler.x(float(name_box[2])),
+                y + scaler.y(float(name_box[3])),
+            )
+            row = (
+                scaler.x(row_x1),
+                max(0, y - half_height),
+                scaler.x(row_x2),
+                min(image.height, y + half_height),
+            )
+            rows.append(FriendRow(index=index, y=y, row_box=row, status_box=status, name_box=name, watch_x=watch_x))
+        return rows
+
+    def _dynamic_friend_rows(self, image: Image.Image, scaler: Scaler) -> list[FriendRow]:
+        row_x1 = float(self.config.get("friend_list.row_x1", 260))
+        row_x2 = float(self.config.get("friend_list.row_x2", 1940))
+        search_y1 = float(self.config.get("friend_list.dynamic_search_y1", 130))
+        search_y2 = float(self.config.get("friend_list.dynamic_search_y2", 1010))
+        region = (scaler.x(row_x1), scaler.y(search_y1), scaler.x(row_x2), scaler.y(search_y2))
+        arr = self._crop_array(image, region)
+        if arr.size == 0:
+            return []
+
+        gray = arr.mean(axis=2)
+        dark_limit = float(self.config.get("friend_list.dynamic_dark_limit", 45))
+        dark_ratio = (gray < dark_limit).mean(axis=1)
+        active = dark_ratio > float(self.config.get("friend_list.dynamic_dark_ratio", 0.45))
+        min_height = scaler.y(float(self.config.get("friend_list.dynamic_min_segment_height", 35)))
+        row_gap = scaler.y(float(self.config.get("friend_list.row_gap", 150)))
+        y_offset = scaler.y(float(self.config.get("friend_list.dynamic_status_offset", 122)))
+        max_rows = int(self.config.get("friend_list.dynamic_max_rows", 7))
+
+        segments: list[tuple[int, int]] = []
+        start: int | None = None
+        for idx, is_active in enumerate(active):
+            if is_active and start is None:
+                start = idx
+            elif not is_active and start is not None:
+                if idx - start >= min_height:
+                    segments.append((region[1] + start, region[1] + idx))
+                start = None
+        if start is not None and len(active) - start >= min_height:
+            segments.append((region[1] + start, region[1] + len(active)))
+
+        candidate_y: list[int] = []
+        for top, bottom in segments:
+            height = bottom - top
+            split_count = max(1, round(height / max(row_gap, 1)))
+            for split in range(split_count):
+                y = top + y_offset + split * row_gap
+                if 0 <= y < image.height:
+                    candidate_y.append(y)
+
+        deduped: list[int] = []
+        min_gap = max(20, round(row_gap * 0.55))
+        for y in sorted(candidate_y):
+            if deduped and abs(y - deduped[-1]) < min_gap:
+                continue
+            deduped.append(y)
+        deduped = deduped[:max_rows]
+        if not deduped:
+            return []
+
+        row_height = float(self.config.get("friend_list.row_height", 130))
+        status_box = self.config.get("friend_list.status_box", [430, -22, 790, 24])
+        name_box = self.config.get("friend_list.name_box", [430, -68, 790, -20])
+        watch_x = scaler.x(float(self.config.get("tap_points.watch_button_x", 1715)))
+        half_height = scaler.y(row_height / 2)
+        rows: list[FriendRow] = []
+        for index, y in enumerate(deduped):
             status = (
                 scaler.x(float(status_box[0])),
                 y + scaler.y(float(status_box[1])),

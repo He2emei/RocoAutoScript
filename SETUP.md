@@ -85,7 +85,7 @@ runtime:
 - `adb.mumu.cli`：MuMu 的 `mumu-cli.exe` 路径。安装位置不同就改成自己的路径。
 - `adb.mumu.index`：MuMu 实例编号，通常从 0 开始。第三个实例一般是 `2`。
 - `runtime.interval_seconds`：等待、观战、无目标时的主循环间隔。默认 30 秒。
-- `runtime.max_swipes_per_tab`：好友列表每轮最多向下滑几屏。每屏按 6 条可见好友重新扫描。
+- `runtime.max_swipes_per_tab`：好友列表每轮最多向下滚动几次。默认采用约 2 行的重叠滚动，所以次数会比整页滚动更高。
 - `runtime.dry_run`：设为 `true` 时只识别不点击，适合第一次测试。
 
 ## 4. 找到模拟器 serial
@@ -286,7 +286,7 @@ friend_list:
   name_box: [430, -68, 790, -20]
 ```
 
-如果滑动后下一组 6 条没有完整对齐，优先调 `swipe.rows_per_page`、`swipe.duration_ms` 和 `friend_list.row_gap`。默认启用 `swipe.use_row_distance`，脚本会按 `friend_list.row_gap * swipe.rows_per_page` 计算拖动距离，并用慢拖减少惯性；如果仍然跳过 7 条，可以把 `rows_per_page` 调成 `5.6` 或继续增大 `duration_ms`。如果某一行状态文字框住不准，优先调 `friend_list.status_box` 和 `friend_list.row_gap`。
+如果滚动后行没有完整对齐，优先不要追求“一次翻整页”。默认启用 `swipe.use_row_distance`，脚本会按 `friend_list.row_gap * swipe.rows_per_page` 计算拖动距离，并且 `rows_per_page` 默认只有 `2`，通过重叠扫描避免漏掉底部半露出的好友。如果仍然跳过太多，把 `rows_per_page` 调小；如果滚得太慢，再适当调大。如果某一行状态文字框住不准，优先调 `friend_list.status_box`、`friend_list.dynamic_*` 和 `friend_list.row_gap`。
 
 离线列表终止检测在 `vision.offline_*` 下配置。默认逻辑是：同一行状态区域内绿色像素很少、灰色文字像素足够多时，认为这一行是“2天前 / 4小时前 / 10小时前”这类离线行。
 

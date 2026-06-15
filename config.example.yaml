@@ -9,7 +9,7 @@ adb:
 runtime:
   interval_seconds: 30
   dry_run: false
-  max_swipes_per_tab: 4
+  max_swipes_per_tab: 8
   post_action_delay_seconds: 2.0
   post_battle_grace_seconds: 180
   save_screenshots: false
@@ -92,6 +92,7 @@ regions:
   battle_bottom_controls: [980, 990, 1340, 1070]
 
 friend_list:
+  dynamic_rows: true
   visible_rows: 6
   first_row_y: 250
   row_gap: 150
@@ -101,6 +102,13 @@ friend_list:
   row_x2: 1940
   status_box: [430, -22, 790, 24]
   name_box: [430, -68, 790, -20]
+  dynamic_search_y1: 130
+  dynamic_search_y2: 1010
+  dynamic_dark_limit: 45
+  dynamic_dark_ratio: 0.45
+  dynamic_min_segment_height: 35
+  dynamic_status_offset: 122
+  dynamic_max_rows: 7
 
 templates:
   menu:
@@ -162,10 +170,10 @@ tap_points:
 
 swipe:
   use_row_distance: true
-  rows_per_page: 6
+  rows_per_page: 2
   list_x: 1120
   start_y: 1000
   min_end_y: 100
-  duration_ms: 1800
+  duration_ms: 1200
   list_start: [1120, 1000]
   list_end: [1120, 100]
