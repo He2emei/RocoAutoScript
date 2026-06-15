@@ -81,10 +81,21 @@ class SpectatorBot:
         if image is None:
             raise RuntimeError("No screenshot available for scaling swipe.")
         scaler = self.vision.scaler(image)
-        start = scaler.point(tuple(self.config.get("swipe.list_start", [1120, 900])))
-        end = scaler.point(tuple(self.config.get("swipe.list_end", [1120, 310])))
+        if self.config.get("swipe.use_row_distance", True):
+            x = scaler.x(float(self.config.get("swipe.list_x", 1120)))
+            start_y = scaler.y(float(self.config.get("swipe.start_y", 1000)))
+            row_gap = scaler.y(float(self.config.get("friend_list.row_gap", 150)))
+            rows = float(self.config.get("swipe.rows_per_page", self.config.get("friend_list.visible_rows", 6)))
+            distance = round(row_gap * rows)
+            min_end_y = scaler.y(float(self.config.get("swipe.min_end_y", 100)))
+            end_y = max(min_end_y, start_y - distance)
+            start = (x, start_y)
+            end = (x, end_y)
+        else:
+            start = scaler.point(tuple(self.config.get("swipe.list_start", [1120, 900])))
+            end = scaler.point(tuple(self.config.get("swipe.list_end", [1120, 310])))
         duration = int(self.config.get("swipe.duration_ms", 550))
-        LOGGER.info("swipe friend list %s -> %s", start, end)
+        LOGGER.info("swipe friend list %s -> %s duration=%sms", start, end, duration)
         if not self.dry_run:
             self.device.swipe(start, end, duration)
 

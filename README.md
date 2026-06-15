@@ -68,7 +68,7 @@ pip install rapidocr_onnxruntime
 - `ocr.enabled`：是否启用好友状态 OCR。OCR 只跑每行状态文字的小区域，不做全屏识别。
 - `friend_list`：好友列表可见行、行距、状态文字区域和姓名区域。不同分辨率下优先调这里。
 - `vision.offline_*`：离线灰字检测阈值。看到灰色离线时间行后，会停止继续下滑当前列表。
-- `swipe`：好友列表翻页滑动起止坐标。默认目标是每次滚动约 6 条好友；若跳过 7 条，把 `list_end` 的 y 值调大一些。
+- `swipe`：好友列表翻页参数。默认按 `friend_list.row_gap * swipe.rows_per_page` 计算拖动距离，并用较长 `duration_ms` 慢拖以减少惯性。
 - `stats.enabled`：是否记录结算页金币统计。
 - `reward_ocr.template_dir`：奖励金币数字模板目录。遇到缺模板数字时会保存未识别裁图到 `debug/reward_unresolved`。
 - `vision.activity_min_width`：绿色状态文字最小宽度。真实手机 UI 如果识别不到可观战好友，可以适当调低。

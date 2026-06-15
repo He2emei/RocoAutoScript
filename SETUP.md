@@ -286,7 +286,7 @@ friend_list:
   name_box: [430, -68, 790, -20]
 ```
 
-如果滑动后下一组 6 条没有完整对齐，优先调 `swipe.list_start`、`swipe.list_end` 和 `swipe.duration_ms`。默认 `list_end.y` 是按“每次滚约 6 条”校准的；如果实际跳过 7 条，把 `swipe.list_end` 的 y 值调大一些，如果不足 6 条则调小一些。如果某一行状态文字框住不准，优先调 `friend_list.status_box` 和 `friend_list.row_gap`。
+如果滑动后下一组 6 条没有完整对齐，优先调 `swipe.rows_per_page`、`swipe.duration_ms` 和 `friend_list.row_gap`。默认启用 `swipe.use_row_distance`，脚本会按 `friend_list.row_gap * swipe.rows_per_page` 计算拖动距离，并用慢拖减少惯性；如果仍然跳过 7 条，可以把 `rows_per_page` 调成 `5.6` 或继续增大 `duration_ms`。如果某一行状态文字框住不准，优先调 `friend_list.status_box` 和 `friend_list.row_gap`。
 
 离线列表终止检测在 `vision.offline_*` 下配置。默认逻辑是：同一行状态区域内绿色像素很少、灰色文字像素足够多时，认为这一行是“2天前 / 4小时前 / 10小时前”这类离线行。
 

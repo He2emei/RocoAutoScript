@@ -161,6 +161,11 @@ tap_points:
   close_top_right: [1905, 58]
 
 swipe:
-  list_start: [1120, 900]
-  list_end: [1120, 395]
-  duration_ms: 550
+  use_row_distance: true
+  rows_per_page: 6
+  list_x: 1120
+  start_y: 1000
+  min_end_y: 100
+  duration_ms: 1800
+  list_start: [1120, 1000]
+  list_end: [1120, 100]
